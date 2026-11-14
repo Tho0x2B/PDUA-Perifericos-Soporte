@@ -110,8 +110,16 @@ INTSUP: interrupt_support port map (int_per,iom,clk,rst_n,interrupt);
 PERIF: IOper port map (clk,rst_n,valid,int_per,iom,rwi,diri,datao,datai,LED_gpio,switch_gpio);
 
 
--- Decodificador
-cs_ROM <= not diri(7); 	-- Memoria ROM mapeada en las primeras 128 posiciones (0b00000000-0b01111111) (0x00-0x7F)
-cs_RAM <= diri(7); 		-- Memoria RAM mapeada en las segundas 128 posiciones (0b10000000-0b11111111) (0x80-0xFF)
+-- =========================================================================
+-- Decodificador de Memoria (iom = '1') y Periféricos (iom = '0')
+-- =========================================================================
+-- Espacio de Memoria Principal (iom = '1'):
+cs_ROM  <= iom and (not diri(7)); -- 0x00 a 0x7F (128 posiciones ROM)
+cs_RAM  <= iom and diri(7);       -- 0x80 a 0xFF (128 posiciones RAM)
+-- Decodificador 2 a 4 para Periféricos (Enable activo en bajo: iom = '0', entradas: diri(7 downto 6))
+cs_GPIO <= '1' when (iom = '0' and diri(7 downto 6) = "00") else '0'; -- Salida Y0 (0x00..0x3F)
+cs_Mult <= '1' when (iom = '0' and diri(7 downto 6) = "01") else '0'; -- Salida Y1 (0x40..0x7F)
+-- Unión de solicitudes de interrupción hacia interrupt_support:
+int_per <= int_gpio or int_mult;
 
 end Behavioral;

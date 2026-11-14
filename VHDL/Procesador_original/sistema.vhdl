@@ -95,10 +95,9 @@ end component;
 
 
 
-signal rwi,cs_ROM,cs_RAM,iom	: std_logic;
-signal datai,datao,diri		: std_logic_vector(7 downto 0);
--- INT wise
-signal int_per,interrupt : std_logic;
+signal rwi, cs_ROM, cs_RAM, cs_GPIO, cs_Mult, iom : std_logic;
+signal int_gpio, int_mult, int_per, interrupt     : std_logic;
+
 
 begin
 

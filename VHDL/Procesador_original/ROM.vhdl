@@ -36,50 +36,67 @@ entity ROM is
 end ROM;
 
 architecture Behavioral of ROM is
-
 begin
-process(cs,rd,dir,iom)
-begin
-if cs = '1' and rd = '0' and iom = '1' then
-       case dir is
-	    when "0000000" => data <= "01010000";  -- 0x00 JMP MAIN
-	    when "0000001" => data <= "00000011";  -- 0x01 MAIN 
-	    when "0000010" => data <= "00010111";  -- 0x02 RAI Vector de Interrupcion (apunta a la ISR)
-	    when "0000011" => data <= "00011000";  -- 0x03 MOV ACC,CTE 
-       when "0000100" => data <= "00010000";  -- 0x04 CTE = 0x10
-	    when "0000101" => data <= "10000000";  -- 0x05 COMP2 ACC (0xF0)
-	    when "0000110" => data <= "01110000";  -- 0x06 CALL DIR
-	    when "0000111" => data <= "00001111";  -- 0x07 DIR (0x0F)
-	    when "0001000" => data <= "10000000";  -- 0x08 COMP2 ACC
-       when "0001001" => data <= "01010000";  -- 0x09 JUMP FIN 	 
-       when "0001010" => data <= "00001001";  -- 0x0A FIN
-       when "0001011" => data <= "00000000";  -- 0x0B 
-       when "0001100" => data <= "00000000";  -- 0x0C 
-       when "0001101" => data <= "00000000";  -- 0x0D 
-	    when "0001110" => data <= "00000000";  -- 0x0E 
-       when "0001111" => data <= "00011000";  -- 0x0F SUBR: MOV ACC,CTE
-	    when "0010000" => data <= "00110000";  -- 0x10 CTE = 0x30
-	    when "0010001" => data <= "01111000";  -- 0x11 RET
-	    when "0010010" => data <= "00000000";  -- 0x12 
-	    when "0010011" => data <= "00000000";  -- 0x13 
-		 when "0010100" => data <= "00000000";  -- 0x14 
-	    when "0010101" => data <= "00000000";  -- 0x15
-	    when "0010110" => data <= "00000000";  -- 0x16 
-	    when "0010111" => data <= "00011000";  -- 0x17 ISR: MOV ACC, CTE
-		 when "0011000" => data <= "00000101";  -- 0x18 CTE = 0x05 (dir lectura switch)
-		 when "0011001" => data <= "00101000";  -- 0x19 MOV DPTR,ACC
-		 when "0011010" => data <= "10011000";  -- 0x1A RCV ACC,[DPTR]
-		 when "0011011" => data <= "00011000";  -- 0x1B MOV ACC, CTE
-		 when "0011100" => data <= "00000100";  -- 0x1C CTE = 0x04 (dir escritura LED) 
-	    when "0011101" => data <= "00101000";  -- 0x1D MOV DPTR,ACC
-		 when "0011110" => data <= "00011000";  -- 0x1E MOV ACC, CTE
-		 when "0011111" => data <= "10011001";  -- 0x1F CTE = 0x99 (valor escritura LED) 
-		 when "0100000" => data <= "10100000";  -- 0x20 SND [DPTR],ACC
-		 when "0100001" => data <= "01111000";  -- 0x21 RET
-	
-		 when others => data <= (others => 'X'); 
-       end case;
-else data <= (others => 'Z');
-end if;  
-end process;
-end;
+    -- Diagnostico: (-128) x (-128) = 0x4000.
+    -- La ISR deja el byte bajo en RAM 0x80 y el alto en RAM 0x81.
+    process (cs, rd, iom, dir)
+    begin
+        if cs = '1' and rd = '0' and iom = '1' then
+            case dir is
+                when "0000000" => data <= x"50"; -- 00 JMP MAIN
+                when "0000001" => data <= x"03"; -- 01
+                when "0000010" => data <= x"20"; -- 02 vector de interrupcion -> ISR
+                when "0000011" => data <= x"18"; -- 03 MOV ACC, 0x40 ; MAIN: operando X = -128
+                when "0000100" => data <= x"40"; -- 04
+                when "0000101" => data <= x"28"; -- 05 MOV DPTR, ACC
+                when "0000110" => data <= x"18"; -- 06 MOV ACC, 0x80
+                when "0000111" => data <= x"80"; -- 07
+                when "0001000" => data <= x"A0"; -- 08 SND [DPTR], ACC
+                when "0001001" => data <= x"18"; -- 09 MOV ACC, 0x41 ; operando Y = -128
+                when "0001010" => data <= x"41"; -- 0A
+                when "0001011" => data <= x"28"; -- 0B MOV DPTR, ACC
+                when "0001100" => data <= x"18"; -- 0C MOV ACC, 0x80
+                when "0001101" => data <= x"80"; -- 0D
+                when "0001110" => data <= x"A0"; -- 0E SND [DPTR], ACC
+                when "0001111" => data <= x"18"; -- 0F MOV ACC, 0x42 ; registro de control: iniciar
+                when "0010000" => data <= x"42"; -- 10
+                when "0010001" => data <= x"28"; -- 11 MOV DPTR, ACC
+                when "0010010" => data <= x"18"; -- 12 MOV ACC, 0x01
+                when "0010011" => data <= x"01"; -- 13
+                when "0010100" => data <= x"A0"; -- 14 SND [DPTR], ACC
+                when "0010101" => data <= x"50"; -- 15 ESPERA: JMP ESPERA
+                when "0010110" => data <= x"15"; -- 16
+                when "0100000" => data <= x"18"; -- 20 MOV ACC, 0x43 ; ISR: leer byte bajo de Z
+                when "0100001" => data <= x"43"; -- 21
+                when "0100010" => data <= x"28"; -- 22 MOV DPTR, ACC
+                when "0100011" => data <= x"98"; -- 23 RCV ACC, [DPTR]
+                when "0100100" => data <= x"10"; -- 24 MOV A, ACC ; conservar el byte mientras se prepara DPTR
+                when "0100101" => data <= x"18"; -- 25 MOV ACC, 0x80 ; direccion de destino en RAM
+                when "0100110" => data <= x"80"; -- 26
+                when "0100111" => data <= x"28"; -- 27 MOV DPTR, ACC
+                when "0101000" => data <= x"08"; -- 28 MOV ACC, A
+                when "0101001" => data <= x"30"; -- 29 MOV [DPTR], ACC
+                when "0101010" => data <= x"18"; -- 2A MOV ACC, 0x44 ; leer byte alto de Z
+                when "0101011" => data <= x"44"; -- 2B
+                when "0101100" => data <= x"28"; -- 2C MOV DPTR, ACC
+                when "0101101" => data <= x"98"; -- 2D RCV ACC, [DPTR]
+                when "0101110" => data <= x"10"; -- 2E MOV A, ACC ; conservar el byte mientras se prepara DPTR
+                when "0101111" => data <= x"18"; -- 2F MOV ACC, 0x81 ; direccion de destino en RAM
+                when "0110000" => data <= x"81"; -- 30
+                when "0110001" => data <= x"28"; -- 31 MOV DPTR, ACC
+                when "0110010" => data <= x"08"; -- 32 MOV ACC, A
+                when "0110011" => data <= x"30"; -- 33 MOV [DPTR], ACC
+                when "0110100" => data <= x"18"; -- 34 MOV ACC, 0x42 ; registro de control: confirmar interrupcion
+                when "0110101" => data <= x"42"; -- 35
+                when "0110110" => data <= x"28"; -- 36 MOV DPTR, ACC
+                when "0110111" => data <= x"18"; -- 37 MOV ACC, 0x02
+                when "0111000" => data <= x"02"; -- 38
+                when "0111001" => data <= x"A0"; -- 39 SND [DPTR], ACC
+                when "0111010" => data <= x"78"; -- 3A RET
+                when others => data <= (others => 'X');
+            end case;
+        else
+            data <= (others => 'Z');
+        end if;
+    end process;
+end architecture Behavioral;

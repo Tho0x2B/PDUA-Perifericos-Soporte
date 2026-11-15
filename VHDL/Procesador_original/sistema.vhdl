@@ -38,14 +38,11 @@ use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity sistema is
-    Port ( clk 			: in 	std_logic;
-           rst_n 			: in 	std_logic;
-           valid 			: in 	std_logic;
-			  switch_gpio	: in	std_logic_vector(7 downto 0);
-			  LED_gpio		: out std_logic_vector(7 downto 0)
+    Port ( clk 	: in 	std_logic;
+           rst_n 	: in 	std_logic;
+           int 	: in 	std_logic
 			  );
 end sistema;
-
 
 architecture Behavioral of sistema is
 
@@ -73,52 +70,52 @@ component RAM is
 			  data_out 	: out std_logic_vector(7 downto 0));
 end component;
 
-component interrupt_support is
-    Port ( int : in  STD_LOGIC;
-           iom : in  STD_LOGIC;
-           clk : in  STD_LOGIC;
-           rst : in  STD_LOGIC;
-           int_out : out  STD_LOGIC);
-end component;
-
-component IOper is
-    Port ( clk,rst_n,valid 	: in 	std_logic;
-           int 			: out std_logic;
-           iom 			: in  std_logic;		-- IO=0,M=1
-           rw 				: in  std_logic;		-- R=0,W=1
-           bus_dir 	  	: in std_logic_vector(7 downto 0);
-           bus_data_in 	: in 	std_logic_vector(7 downto 0);
-			  bus_data_out	: out std_logic_vector(7 downto 0);
-			  LED_gpio		: out std_logic_vector(7 downto 0);
-			  switch_gpio 	: in 	std_logic_vector(7 downto 0));
-end component;
-
-
-
-signal rwi, cs_ROM, cs_RAM, cs_GPIO, cs_Mult, iom : std_logic;
-signal int_gpio, int_mult, int_per, interrupt     : std_logic;
-
+signal rwi, iom, cs_ROM, cs_RAM, cs_Mult : std_logic;
+signal datai, datao, diri                : std_logic_vector(7 downto 0);
+signal rom_data, ram_data, mult_data    : std_logic_vector(7 downto 0);
+signal irq_mult, irq_request, irq_pdua  : std_logic;
+signal iom_irq, io_write_prev           : std_logic;
 
 begin
+    PROC : pdua port map (clk, rst_n, irq_pdua, iom, rwi, diri, datai, datao);
+    MROM : ROM  port map (cs_ROM, rwi, iom, diri(6 downto 0), rom_data);
+    MRAM : RAM  port map (cs_RAM, rwi, iom, diri(6 downto 0), datao, ram_data);
 
---PROC	: pdua 	port map (clk,rst_n,int,iom,rwi,diri,datai,datao);
-PROC	: pdua 	port map (clk,rst_n,interrupt,iom,rwi,diri,datai,datao);
-MROM	: ROM  	port map (cs_ROM,rwi,iom,diri(6 downto 0),datai);
-MRAM	: RAM 	port map (cs_RAM,rwi,iom,diri(6 downto 0),datao,datai);
-INTSUP: interrupt_support port map (int_per,iom,clk,rst_n,interrupt);
-PERIF: IOper port map (clk,rst_n,valid,int_per,iom,rwi,diri,datao,datai,LED_gpio,switch_gpio);
+    MULT : entity work.MultPerif
+        port map (
+            clk => clk, rst_n => rst_n, cs => cs_Mult, rw => rwi,
+            addr => diri, data_in => datao, data_out => mult_data, irq => irq_mult
+        );
 
+    INTSUP : entity work.interrupt_support
+        port map (
+            int => irq_request, iom => iom_irq,
+            clk => clk, rst => rst_n, int_out => irq_pdua
+        );
 
--- =========================================================================
--- Decodificador de Memoria (iom = '1') y Periféricos (iom = '0')
--- =========================================================================
--- Espacio de Memoria Principal (iom = '1'):
-cs_ROM  <= iom and (not diri(7)); -- 0x00 a 0x7F (128 posiciones ROM)
-cs_RAM  <= iom and diri(7);       -- 0x80 a 0xFF (128 posiciones RAM)
--- Decodificador 2 a 4 para Periféricos (Enable activo en bajo: iom = '0', entradas: diri(7 downto 6))
-cs_GPIO <= '1' when (iom = '0' and diri(7 downto 6) = "00") else '0'; -- Salida Y0 (0x00..0x3F)
-cs_Mult <= '1' when (iom = '0' and diri(7 downto 6) = "01") else '0'; -- Salida Y1 (0x40..0x7F)
--- Unión de solicitudes de interrupción hacia interrupt_support:
-int_per <= int_gpio or int_mult;
+    cs_ROM <= iom and not diri(7);
+    cs_RAM <= iom and diri(7);
+
+    -- SND prepara la direccion en el primer ciclo y presenta el dato en el segundo.
+    process (clk, rst_n)
+    begin
+        if rst_n = '0' then
+            io_write_prev <= '0';
+        elsif rising_edge(clk) then
+            io_write_prev <= (not iom) and rwi;
+        end if;
+    end process;
+
+    cs_Mult <= '1' when iom = '0' and diri(7 downto 6) = "01"
+                       and (rwi = '0' or io_write_prev = '1') else '0';
+
+    datai <= rom_data  when rwi = '0' and cs_ROM = '1' else
+             ram_data  when rwi = '0' and cs_RAM = '1' else
+             mult_data when rwi = '0' and cs_Mult = '1' else
+             (others => '0');
+
+    irq_request <= int or irq_mult;
+    -- El PDUA indica la entrada a la ISR con IOM=0 y la direccion del vector.
+    iom_irq <= '0' when iom = '0' and rwi = '0' and diri = x"02" else '1';
 
 end Behavioral;

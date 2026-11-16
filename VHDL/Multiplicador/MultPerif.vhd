@@ -62,11 +62,11 @@ begin
         end if;
     end process DECO_3A8;
 
-    sel_x    <= sel(0); -- Guarda el byte del bus en el registro x primer operando con rw= 1 / con rw= 0 no haec nada solo devuevlo 0x00
-    sel_y    <= sel(1); -- Guarda el byte del bus en el registro y segundo operando / con rw = 0 no hace nada
-    sel_ctrl <= sel(2); -- va conectado a dos and una con rw y otra con not rw, cuando rw = 1 se ve el registro de control, donde se escribe 0x01 para que inicie, y 0x02 ack para decirle que ya se leyo el resultado. el rw en 0 lee el bit del registro de estado para saber si fue el multiplicador el que mando la senal de interrupcion
-    sel_zl   <= sel(3); --  rw = 1 no hace nada/ rw = 0 Pone en el bus el byte bajo del resultado z[7:0]
-    sel_zh   <= sel(4); -- rw = 1 np hace nada / rw= 0 pone en el bus el byte alto del resultado z[15:8]
+    sel_x       <= sel(0); -- Guarda el byte del bus en el registro x primer operando con rw= 1 / con rw= 0 no hace nada, solo devuelve 0x00
+    sel_y       <= sel(1); -- Guarda el byte del bus en el registro y segundo operando / con rw = 0 no hace nada
+    sel_control <= sel(2); -- va conectado a dos and una con rw y otra con not rw, cuando rw = 1 se ve el registro de control, donde se escribe 0x01 para que inicie, y 0x02 ack para decirle que ya se leyo el resultado. el rw en 0 lee el bit del registro de estado para saber si fue el multiplicador el que mando la senal de interrupcion
+    sel_z_bajo  <= sel(3); --  rw = 1 no hace nada/ rw = 0 Pone en el bus el byte bajo del resultado z[7:0]
+    sel_z_alto  <= sel(4); -- rw = 1 no hace nada / rw= 0 pone en el bus el byte alto del resultado z[15:8]
     -- sel(5), sel(6) y sel(7) no se usan
 
     core : entity work.Multiplier

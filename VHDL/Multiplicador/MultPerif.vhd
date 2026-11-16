@@ -1,16 +1,16 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
--- Periferico multiplicador (E/S 0x40-0x7F, salida Y1 del decodificador 2 a 4).
--- Los registros se eligen con un decodificador 3 a 8 sobre A2..A0:
---   Y0 (A2..A0 = 000) -> 0x40  X           (W)
---   Y1 (A2..A0 = 001) -> 0x41  Y           (W)
---   Y2 (A2..A0 = 010) -> 0x42  CONTROL (W: 0x01 START, 0x02 ACK)
+-- Periferico multiplicador (E/S 0x40-0x7F, salida Y1 del decodificador 2 a 4 con A7..A6).
+-- Los registros se eligen con un decodificador 3 a 8 sobre A5..A3:
+--   Y0 (A5..A3 = 000) -> 0x40  X           (W)
+--   Y1 (A5..A3 = 001) -> 0x48  Y           (W)
+--   Y2 (A5..A3 = 010) -> 0x50  CONTROL (W: 0x01 START, 0x02 ACK)
 --                              ESTADO  (R: bit1 = INT pendiente, bit0 = ocupado)
---   Y3 (A2..A0 = 011) -> 0x43  Z[7:0]      (R)
---   Y4 (A2..A0 = 100) -> 0x44  Z[15:8]     (R)
---   Y5..Y7            -> sin conectar
--- Decodificacion parcial: A5..A3 no se usan (0x48 es alias de 0x40).
+--   Y3 (A5..A3 = 011) -> 0x58  Z[7:0]      (R)
+--   Y4 (A5..A3 = 100) -> 0x60  Z[15:8]     (R)
+--   Y5..Y7 (0x68, 0x70, 0x78) -> sin conectar
+-- A2..A0 quedan libres (decodificacion parcial: 0x41..0x47 tambien son X).
 entity MultPerif is
     port (
         clk      : in  std_logic;
@@ -44,12 +44,12 @@ architecture rtl of MultPerif is
     signal ocupado          : std_logic;
     signal pendiente        : std_logic;
 begin
-    -- Decodificador 3 a 8: EN = cs (Y1 del 2 a 4), entradas A2..A0
+    -- Decodificador 3 a 8: EN = cs (Y1 del 2 a 4), entradas A5..A3
     DECO_3A8 : process (cs, addr)
     begin
         sel <= (others => '0');
         if cs = '1' then
-            case addr(2 downto 0) is
+            case addr(5 downto 3) is
                 when "000"  => sel(0) <= '1';
                 when "001"  => sel(1) <= '1';
                 when "010"  => sel(2) <= '1';

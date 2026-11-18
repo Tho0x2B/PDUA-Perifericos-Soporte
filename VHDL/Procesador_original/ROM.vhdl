@@ -136,39 +136,39 @@ when "1001101" => data <= "01000000";  -- 0x4D: AND ACC, A; aisla pendiente GPIO
 when "1001110" => data <= "01011000";  -- 0x4E: JZ FINAL_ISR; si GPIO no tiene pendiente, pasa a FINAL_ISR
 when "1001111" => data <= "01000000";  -- 0x4F: 0x40; direccion de FINAL_ISR
 
--- Lee X del GPIO, lo envia al multiplicador y despues lo guarda en RAM 0x80.
+-- Lee X del GPIO, lo guarda en RAM 0x80 y despues lo envia al multiplicador.
 when "1010000" => data <= "00011000";  -- 0x50: MOV ACC, 0x00
 when "1010001" => data <= "00000000";  -- 0x51: 0x00; E/S: entrada 0 del GPIO, utilizada como X
 when "1010010" => data <= "00101000";  -- 0x52: MOV DPTR, ACC
 when "1010011" => data <= "10011000";  -- 0x53: RCV ACC, [DPTR]; recibe X desde la entrada 0 del GPIO, E/S 0x00
 when "1010100" => data <= "00010000";  -- 0x54: MOV A, ACC; conserva X mientras prepara las direcciones
-when "1010101" => data <= "00011000";  -- 0x55: MOV ACC, 0x40
-when "1010110" => data <= "01000000";  -- 0x56: 0x40; E/S: registro X del multiplicador
+when "1010101" => data <= "00011000";  -- 0x55: MOV ACC, 0x80
+when "1010110" => data <= "10000000";  -- 0x56: 0x80; RAM: destino de X
 when "1010111" => data <= "00101000";  -- 0x57: MOV DPTR, ACC
 when "1011000" => data <= "00001000";  -- 0x58: MOV ACC, A
-when "1011001" => data <= "10100000";  -- 0x59: SND [DPTR], ACC; envia X al multiplicador, E/S 0x40
-when "1011010" => data <= "00011000";  -- 0x5A: MOV ACC, 0x80
-when "1011011" => data <= "10000000";  -- 0x5B: 0x80; RAM: destino de X
+when "1011001" => data <= "00110000";  -- 0x59: MOV [DPTR], ACC; guarda X en RAM 0x80
+when "1011010" => data <= "00011000";  -- 0x5A: MOV ACC, 0x40
+when "1011011" => data <= "01000000";  -- 0x5B: 0x40; E/S: registro X del multiplicador
 when "1011100" => data <= "00101000";  -- 0x5C: MOV DPTR, ACC
 when "1011101" => data <= "00001000";  -- 0x5D: MOV ACC, A
-when "1011110" => data <= "00110000";  -- 0x5E: MOV [DPTR], ACC; guarda X en RAM 0x80
+when "1011110" => data <= "10100000";  -- 0x5E: SND [DPTR], ACC; envia X al multiplicador, E/S 0x40
 
--- Lee Y del GPIO, lo envia al multiplicador y despues lo guarda en RAM 0x81.
+-- Lee Y del GPIO, lo guarda en RAM 0x81 y despues lo envia al multiplicador.
 when "1011111" => data <= "00011000";  -- 0x5F: MOV ACC, 0x08
 when "1100000" => data <= "00001000";  -- 0x60: 0x08; E/S: entrada 1 del GPIO, utilizada como Y
 when "1100001" => data <= "00101000";  -- 0x61: MOV DPTR, ACC
 when "1100010" => data <= "10011000";  -- 0x62: RCV ACC, [DPTR]; recibe Y desde la entrada 1 del GPIO, E/S 0x08
 when "1100011" => data <= "00010000";  -- 0x63: MOV A, ACC; conserva Y mientras prepara las direcciones
-when "1100100" => data <= "00011000";  -- 0x64: MOV ACC, 0x48
-when "1100101" => data <= "01001000";  -- 0x65: 0x48; E/S: registro Y del multiplicador
+when "1100100" => data <= "00011000";  -- 0x64: MOV ACC, 0x81
+when "1100101" => data <= "10000001";  -- 0x65: 0x81; RAM: destino de Y
 when "1100110" => data <= "00101000";  -- 0x66: MOV DPTR, ACC
 when "1100111" => data <= "00001000";  -- 0x67: MOV ACC, A
-when "1101000" => data <= "10100000";  -- 0x68: SND [DPTR], ACC; envia Y al multiplicador, E/S 0x48
-when "1101001" => data <= "00011000";  -- 0x69: MOV ACC, 0x81
-when "1101010" => data <= "10000001";  -- 0x6A: 0x81; RAM: destino de Y
+when "1101000" => data <= "00110000";  -- 0x68: MOV [DPTR], ACC; guarda Y en RAM 0x81
+when "1101001" => data <= "00011000";  -- 0x69: MOV ACC, 0x48
+when "1101010" => data <= "01001000";  -- 0x6A: 0x48; E/S: registro Y del multiplicador
 when "1101011" => data <= "00101000";  -- 0x6B: MOV DPTR, ACC
 when "1101100" => data <= "00001000";  -- 0x6C: MOV ACC, A
-when "1101101" => data <= "00110000";  -- 0x6D: MOV [DPTR], ACC; guarda Y en RAM 0x81
+when "1101101" => data <= "10100000";  -- 0x6D: SND [DPTR], ACC; envia Y al multiplicador, E/S 0x48
 
 
 -- Reconoce las entradas del GPIO una vez transferidas y conservadas.

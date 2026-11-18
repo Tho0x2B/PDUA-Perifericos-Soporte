@@ -148,7 +148,7 @@ BEGIN
     irq        <= pendiente;
     LED_gpio   <= salida_alta & salida_baja;
 
-    -- MUX combinacional: leer no modifica registros ni reconoce la IRQ.
+    -- MUX combinacional
     data_out <= entrada_0  WHEN rw = '0' AND seleccion(0) = '1' ELSE
                 entrada_1  WHEN rw = '0' AND seleccion(1) = '1' ELSE
                 estado_bus WHEN rw = '0' AND seleccion(2) = '1' ELSE

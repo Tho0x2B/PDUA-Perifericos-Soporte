@@ -28,16 +28,14 @@ ENTITY GPIO_Perif IS
 END ENTITY GPIO_Perif;
 
 ARCHITECTURE rtl OF GPIO_Perif IS
-    TYPE estados IS (ESPERA_PULSACION, ESPERA_LIBERACION, PENDIENTE_ACK, REARME);
-    SIGNAL estado_actual    : estados;
-    SIGNAL estado_siguiente : estados;
+    TYPE state_t IS (WAIT_PRESS, WAIT_RELEASE, WAIT_ACK, REARM);
+    SIGNAL state            : state_t;
+    SIGNAL next_state       : state_t;
     SIGNAL fase             : STD_LOGIC; -- 0: entrada 0; 1: entrada 1
     SIGNAL valid_meta       : STD_LOGIC;
     SIGNAL valid_sync       : STD_LOGIC;
     SIGNAL datos_meta       : STD_LOGIC_VECTOR(7 DOWNTO 0);
     SIGNAL datos_sync       : STD_LOGIC_VECTOR(7 DOWNTO 0);
-    SIGNAL decodificado     : STD_LOGIC_VECTOR(7 DOWNTO 0);
-    SIGNAL seleccion        : STD_LOGIC_VECTOR(7 DOWNTO 0);
     SIGNAL entrada_0        : STD_LOGIC_VECTOR(7 DOWNTO 0);
     SIGNAL entrada_1        : STD_LOGIC_VECTOR(7 DOWNTO 0);
     SIGNAL salida_baja      : STD_LOGIC_VECTOR(7 DOWNTO 0);
@@ -63,49 +61,37 @@ BEGIN
         END IF;
     END PROCESS;
 
-    WITH addr(5 DOWNTO 3) SELECT
-        decodificado <= "00000001" WHEN "000",
-                        "00000010" WHEN "001",
-                        "00000100" WHEN "010",
-                        "00001000" WHEN "011",
-                        "00010000" WHEN "100",
-                        "00100000" WHEN "101",
-                        "01000000" WHEN "110",
-                        "10000000" WHEN "111",
-                        "00000000" WHEN OTHERS;
-    seleccion <= decodificado WHEN cs = '1' ELSE (OTHERS => '0');
-
-    capturar_0   <= '1' WHEN estado_actual = ESPERA_LIBERACION AND
+    capturar_0   <= '1' WHEN state = WAIT_RELEASE AND
                              valid_sync = '0' AND fase = '0' ELSE '0';
-    capturar_1   <= '1' WHEN estado_actual = ESPERA_LIBERACION AND
+    capturar_1   <= '1' WHEN state = WAIT_RELEASE AND
                              valid_sync = '0' AND fase = '1' ELSE '0';
-    ack_aceptado <= '1' WHEN seleccion(2) = '1' AND rw = '1' AND
+    ack_aceptado <= '1' WHEN cs = '1' AND rw = '1' AND addr(5 DOWNTO 3) = "010" AND
                              data_in = X"02" AND pendiente = '1' ELSE '0';
 
-    siguiente : PROCESS(estado_actual, valid_sync, fase, ack_aceptado)
+    control : PROCESS(state, valid_sync, fase, ack_aceptado)
     BEGIN
-        estado_siguiente <= estado_actual;
-        CASE estado_actual IS
-            WHEN ESPERA_PULSACION =>
+        next_state <= state;
+        CASE state IS
+            WHEN WAIT_PRESS =>
                 IF valid_sync = '1' THEN
-                    estado_siguiente <= ESPERA_LIBERACION;
+                    next_state <= WAIT_RELEASE;
                 END IF;
-            WHEN ESPERA_LIBERACION =>
+            WHEN WAIT_RELEASE =>
                 IF valid_sync = '0' THEN
                     IF fase = '0' THEN
-                        estado_siguiente <= ESPERA_PULSACION;
+                        next_state <= WAIT_PRESS;
                     ELSE
-                        estado_siguiente <= PENDIENTE_ACK;
+                        next_state <= WAIT_ACK;
                     END IF;
                 END IF;
-            WHEN PENDIENTE_ACK =>
+            WHEN WAIT_ACK =>
                 IF ack_aceptado = '1' THEN
-                    estado_siguiente <= REARME;
+                    next_state <= REARM;
                 END IF;
-            WHEN REARME =>
+            WHEN REARM =>
                 -- Una pulsacion iniciada mientras habia pendiente se descarta.
                 IF valid_sync = '0' THEN
-                    estado_siguiente <= ESPERA_PULSACION;
+                    next_state <= WAIT_PRESS;
                 END IF;
         END CASE;
     END PROCESS;
@@ -113,7 +99,7 @@ BEGIN
     registros : PROCESS(clk, rst_n)
     BEGIN
         IF rst_n = '0' THEN
-            estado_actual <= REARME;
+            state         <= REARM;
             fase          <= '0';
             entrada_0     <= (OTHERS => '0');
             entrada_1     <= (OTHERS => '0');
@@ -121,7 +107,7 @@ BEGIN
             salida_alta   <= (OTHERS => '0');
             pendiente     <= '0';
         ELSIF RISING_EDGE(clk) THEN
-            estado_actual <= estado_siguiente;
+            state <= next_state;
             IF capturar_0 = '1' THEN
                 entrada_0   <= datos_sync;
                 fase        <= '1';
@@ -135,10 +121,10 @@ BEGIN
             END IF;
 
             -- Salidas independientes de la FSM y del ACK de las entradas.
-            IF rw = '1' AND seleccion(3) = '1' THEN
+            IF cs = '1' AND rw = '1' AND addr(5 DOWNTO 3) = "011" THEN
                 salida_baja <= data_in;
             END IF;
-            IF rw = '1' AND seleccion(4) = '1' THEN
+            IF cs = '1' AND rw = '1' AND addr(5 DOWNTO 3) = "100" THEN
                 salida_alta <= data_in;
             END IF;
         END IF;
@@ -149,8 +135,8 @@ BEGIN
     LED_gpio   <= salida_alta & salida_baja;
 
     -- MUX combinacional: leer no modifica registros ni reconoce la IRQ.
-    data_out <= entrada_0  WHEN rw = '0' AND seleccion(0) = '1' ELSE
-                entrada_1  WHEN rw = '0' AND seleccion(1) = '1' ELSE
-                estado_bus WHEN rw = '0' AND seleccion(2) = '1' ELSE
+    data_out <= entrada_0  WHEN cs = '1' AND rw = '0' AND addr(5 DOWNTO 3) = "000" ELSE
+                entrada_1  WHEN cs = '1' AND rw = '0' AND addr(5 DOWNTO 3) = "001" ELSE
+                estado_bus WHEN cs = '1' AND rw = '0' AND addr(5 DOWNTO 3) = "010" ELSE
                 (OTHERS => '0');
 END ARCHITECTURE rtl;

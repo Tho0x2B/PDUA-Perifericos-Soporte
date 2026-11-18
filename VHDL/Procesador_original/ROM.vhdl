@@ -97,7 +97,7 @@ when "0101110" => data <= "00101000";  -- 0x2E: MOV DPTR ACC
 when "0101111" => data <= "00100000";  -- 0x2F: MOV ACC [DPTR]
 when "0110000" => data <= "00010000";  -- 0x30: MOV A ACC
 when "0110001" => data <= "00011000";  -- 0x31: MOV ACC CTE
-when "0110010" => data <= "XXXXXXXX";  -- 0x32: DIR LEDS BYTE BAJO (THOMAS)
+when "0110010" => data <= "00011000";  -- 0x32: GPIO salida baja, E/S 0x18
 when "0110011" => data <= "00101000";  -- 0x33: MOV DPTR ACC
 when "0110100" => data <= "00001000";  -- 0x34: MOVE ACC A
 when "0110101" => data <= "10100000";  -- 0x35: SEND [DPTR] ACC
@@ -108,7 +108,7 @@ when "0111000" => data <= "00101000";  -- 0x38: MOV DPTR ACC
 when "0111001" => data <= "00100000";  -- 0x39: MOV ACC [DPTR]
 when "0111010" => data <= "00010000";  -- 0x3A: MOV A ACC
 when "0111011" => data <= "00011000";  -- 0x3B: MOV ACC CTE
-when "0111100" => data <= "XXXXXXXX";  -- 0x3C: DIR LEDS BYTE ALTO (THOMAS)
+when "0111100" => data <= "00100000";  -- 0x3C: GPIO salida alta, E/S 0x20
 when "0111101" => data <= "00101000";  -- 0x3D: MOV DPTR ACC
 when "0111110" => data <= "00001000";  -- 0x3E: MOVE ACC A
 when "0111111" => data <= "10100000";  -- 0x3F: SEND [DPTR] ACC
@@ -120,7 +120,7 @@ when "1000100" => data <= "00111000";  -- 0x44: INV ACC
 when "1000101" => data <= "01111000";  -- 0x45: RET
 
 when "1000110" => data <= "00011000";  -- 0x46: ISR GPIO: MOV ACC CTE
-when "1000111" => data <= "XXXXXXXX";  -- 0x47: DIR REGISTRO ESTADOS GPIO (THOMAS)
+when "1000111" => data <= "00010000";  -- 0x47: GPIO estado, E/S 0x10
 when "1001000" => data <= "00101000";  -- 0x48: MOV DPTR ACC
 when "1001001" => data <= "10011000";  -- 0x49: RCV ACC [DPTR]
 when "1001010" => data <= "00010000";  -- 0x4A: MOV A ACC
@@ -131,7 +131,7 @@ when "1001110" => data <= "01011000";  -- 0x4E: JZ FINAL ISR
 when "1001111" => data <= "01000000";  -- 0x4F: 0x40 (FINAL INTERRUPCION)  [antes decia 0x49; FINAL INTERRUPCION esta en 0x40]
 
 when "1010000" => data <= "00011000";  -- 0x50: MOV ACC CTE
-when "1010001" => data <= "XXXXXXXX";  -- 0x51: DIR operando x (THOMAS)
+when "1010001" => data <= "00000000";  -- 0x51: GPIO entrada 0 (X), E/S 0x00
 when "1010010" => data <= "00101000";  -- 0x52: MOVE DTPR ACC
 when "1010011" => data <= "10011000";  -- 0x53: RCV ACC [DPTR]
 when "1010100" => data <= "00010000";  -- 0x54: MOV A ACC
@@ -147,7 +147,7 @@ when "1011101" => data <= "00001000";  -- 0x5D: MOVE ACC A
 when "1011110" => data <= "00110000";  -- 0x5E: MOV [DPTR] ACC
 
 when "1011111" => data <= "00011000";  -- 0x5F: MOV ACC CTE
-when "1100000" => data <= "XXXXXXXX";  -- 0x60: DIR operando y (THOMAS)
+when "1100000" => data <= "00001000";  -- 0x60: GPIO entrada 1 (Y), E/S 0x08
 when "1100001" => data <= "00101000";  -- 0x61: MOVE DTPR ACC
 when "1100010" => data <= "10011000";  -- 0x62: RCV ACC [DPTR]
 when "1100011" => data <= "00010000";  -- 0x63: MOV A ACC
@@ -164,7 +164,7 @@ when "1101101" => data <= "00110000";  -- 0x6D: MOV [DPTR] ACC
 
 
 when "1101110" => data <= "00011000";  -- 0x6E: MOV ACC CTE
-when "1101111" => data <= "XXXXXXXX";  -- 0x6F: DIR REGISTRO DE CONTROL (MISMA DIRECCION QUE ESTADOS)
+when "1101111" => data <= "00010000";  -- 0x6F: GPIO control/ACK, E/S 0x10
 when "1110000" => data <= "00101000";  -- 0x70: MOV DPTR ACC
 when "1110001" => data <= "00011000";  -- 0x71: MOV ACC CTE
 when "1110010" => data <= "00000010";  -- 0x72: 0x02

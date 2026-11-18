@@ -1,5 +1,5 @@
-library ieee;
-use ieee.std_logic_1164.all;
+LIBRARY IEEE;
+USE IEEE.STD_LOGIC_1164.ALL;
 
 -- GPIO de dos capturas de 8 bits y salida de 16 bits.
 -- E/S 0x00..0x3F: A5..A3 seleccionan interfaz; A2..A0 son alias.
@@ -11,137 +11,146 @@ use ieee.std_logic_1164.all;
 -- Un mismo valid carga ambos bytes, uno por pulsacion/liberacion.
 -- Las entradas deben permanecer estables alrededor de la liberacion.
 -- Los sincronizadores no implementan antirrebote mecanico.
-entity GPIO_Perif is
-    port (
-        clk         : in  std_logic;
-        rst_n       : in  std_logic;
-        valid       : in  std_logic;
-        cs          : in  std_logic;
-        rw          : in  std_logic;
-        addr        : in  std_logic_vector(7 downto 0);
-        data_in     : in  std_logic_vector(7 downto 0);
-        data_out    : out std_logic_vector(7 downto 0);
-        switch_gpio : in  std_logic_vector(7 downto 0);
-        LED_gpio    : out std_logic_vector(15 downto 0);
-        irq         : out std_logic
+ENTITY GPIO_Perif IS
+    PORT (
+        clk         : IN  STD_LOGIC;
+        rst_n       : IN  STD_LOGIC;
+        valid       : IN  STD_LOGIC;
+        cs          : IN  STD_LOGIC;
+        rw          : IN  STD_LOGIC;
+        addr        : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+        data_in     : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+        data_out    : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+        switch_gpio : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+        LED_gpio    : OUT STD_LOGIC_VECTOR(15 DOWNTO 0);
+        irq         : OUT STD_LOGIC
     );
-end entity GPIO_Perif;
+END ENTITY GPIO_Perif;
 
-architecture rtl of GPIO_Perif is
-    type estados is (ESPERA_PULSACION, ESPERA_LIBERACION, PENDIENTE_ACK, REARME);
-    signal estado_actual, estado_siguiente : estados;
-    signal fase : std_logic; -- 0: entrada 0; 1: entrada 1
-    signal valid_meta, valid_sync : std_logic;
-    signal datos_meta, datos_sync : std_logic_vector(7 downto 0);
-    signal decodificado, seleccion : std_logic_vector(7 downto 0);
-    signal entrada_0, entrada_1 : std_logic_vector(7 downto 0);
-    signal salida_baja, salida_alta : std_logic_vector(7 downto 0);
-    signal estado_bus : std_logic_vector(7 downto 0);
-    signal pendiente, capturar_0, capturar_1, ack_aceptado : std_logic;
-begin
-    sincronizar : process(clk, rst_n)
-    begin
-        if rst_n = '0' then
-            valid_meta <= '0';
-            valid_sync <= '0';
-            datos_meta <= (others => '0');
-            datos_sync <= (others => '0');
-        elsif rising_edge(clk) then
-            valid_meta <= valid;
-            valid_sync <= valid_meta;
-            datos_meta <= switch_gpio;
-            datos_sync <= datos_meta;
-        end if;
-    end process;
+ARCHITECTURE rtl OF GPIO_Perif IS
+    TYPE estados IS (ESPERA_PULSACION, ESPERA_LIBERACION, PENDIENTE_ACK, REARME);
+    SIGNAL estado_actual    : estados;
+    SIGNAL estado_siguiente : estados;
+    SIGNAL fase             : STD_LOGIC; -- 0: entrada 0; 1: entrada 1
+    SIGNAL valid_meta       : STD_LOGIC;
+    SIGNAL valid_sync       : STD_LOGIC;
+    SIGNAL datos_meta       : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL datos_sync       : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL decodificado     : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL seleccion        : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL entrada_0        : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL entrada_1        : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL salida_baja      : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL salida_alta      : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL estado_bus       : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL pendiente        : STD_LOGIC;
+    SIGNAL capturar_0       : STD_LOGIC;
+    SIGNAL capturar_1       : STD_LOGIC;
+    SIGNAL ack_aceptado     : STD_LOGIC;
+BEGIN
+    sincronizar : PROCESS(clk, rst_n)
+    BEGIN
+        IF rst_n = '0' THEN
+            valid_meta    <= '0';
+            valid_sync    <= '0';
+            datos_meta    <= (OTHERS => '0');
+            datos_sync    <= (OTHERS => '0');
+        ELSIF RISING_EDGE(clk) THEN
+            valid_meta    <= valid;
+            valid_sync    <= valid_meta;
+            datos_meta    <= switch_gpio;
+            datos_sync    <= datos_meta;
+        END IF;
+    END PROCESS;
 
-    with addr(5 downto 3) select
-        decodificado <= "00000001" when "000",
-                        "00000010" when "001",
-                        "00000100" when "010",
-                        "00001000" when "011",
-                        "00010000" when "100",
-                        "00100000" when "101",
-                        "01000000" when "110",
-                        "10000000" when "111",
-                        "00000000" when others;
-    seleccion <= decodificado when cs = '1' else (others => '0');
+    WITH addr(5 DOWNTO 3) SELECT
+        decodificado <= "00000001" WHEN "000",
+                        "00000010" WHEN "001",
+                        "00000100" WHEN "010",
+                        "00001000" WHEN "011",
+                        "00010000" WHEN "100",
+                        "00100000" WHEN "101",
+                        "01000000" WHEN "110",
+                        "10000000" WHEN "111",
+                        "00000000" WHEN OTHERS;
+    seleccion <= decodificado WHEN cs = '1' ELSE (OTHERS => '0');
 
-    capturar_0 <= '1' when estado_actual = ESPERA_LIBERACION and
-                           valid_sync = '0' and fase = '0' else '0';
-    capturar_1 <= '1' when estado_actual = ESPERA_LIBERACION and
-                           valid_sync = '0' and fase = '1' else '0';
-    ack_aceptado <= '1' when seleccion(2) = '1' and rw = '1' and
-                             data_in = x"02" and pendiente = '1' else '0';
+    capturar_0   <= '1' WHEN estado_actual = ESPERA_LIBERACION AND
+                             valid_sync = '0' AND fase = '0' ELSE '0';
+    capturar_1   <= '1' WHEN estado_actual = ESPERA_LIBERACION AND
+                             valid_sync = '0' AND fase = '1' ELSE '0';
+    ack_aceptado <= '1' WHEN seleccion(2) = '1' AND rw = '1' AND
+                             data_in = X"02" AND pendiente = '1' ELSE '0';
 
-    siguiente : process(estado_actual, valid_sync, fase, ack_aceptado)
-    begin
+    siguiente : PROCESS(estado_actual, valid_sync, fase, ack_aceptado)
+    BEGIN
         estado_siguiente <= estado_actual;
-        case estado_actual is
-            when ESPERA_PULSACION =>
-                if valid_sync = '1' then
+        CASE estado_actual IS
+            WHEN ESPERA_PULSACION =>
+                IF valid_sync = '1' THEN
                     estado_siguiente <= ESPERA_LIBERACION;
-                end if;
-            when ESPERA_LIBERACION =>
-                if valid_sync = '0' then
-                    if fase = '0' then
+                END IF;
+            WHEN ESPERA_LIBERACION =>
+                IF valid_sync = '0' THEN
+                    IF fase = '0' THEN
                         estado_siguiente <= ESPERA_PULSACION;
-                    else
+                    ELSE
                         estado_siguiente <= PENDIENTE_ACK;
-                    end if;
-                end if;
-            when PENDIENTE_ACK =>
-                if ack_aceptado = '1' then
+                    END IF;
+                END IF;
+            WHEN PENDIENTE_ACK =>
+                IF ack_aceptado = '1' THEN
                     estado_siguiente <= REARME;
-                end if;
-            when REARME =>
+                END IF;
+            WHEN REARME =>
                 -- Una pulsacion iniciada mientras habia pendiente se descarta.
-                if valid_sync = '0' then
+                IF valid_sync = '0' THEN
                     estado_siguiente <= ESPERA_PULSACION;
-                end if;
-        end case;
-    end process;
+                END IF;
+        END CASE;
+    END PROCESS;
 
-    registros : process(clk, rst_n)
-    begin
-        if rst_n = '0' then
+    registros : PROCESS(clk, rst_n)
+    BEGIN
+        IF rst_n = '0' THEN
             estado_actual <= REARME;
-            fase <= '0';
-            entrada_0 <= (others => '0');
-            entrada_1 <= (others => '0');
-            salida_baja <= (others => '0');
-            salida_alta <= (others => '0');
-            pendiente <= '0';
-        elsif rising_edge(clk) then
+            fase          <= '0';
+            entrada_0     <= (OTHERS => '0');
+            entrada_1     <= (OTHERS => '0');
+            salida_baja   <= (OTHERS => '0');
+            salida_alta   <= (OTHERS => '0');
+            pendiente     <= '0';
+        ELSIF RISING_EDGE(clk) THEN
             estado_actual <= estado_siguiente;
-            if capturar_0 = '1' then
-                entrada_0 <= datos_sync;
-                fase <= '1';
-            end if;
-            if capturar_1 = '1' then
-                entrada_1 <= datos_sync;
-                pendiente <= '1';
-            elsif ack_aceptado = '1' then
-                pendiente <= '0';
-                fase <= '0';
-            end if;
+            IF capturar_0 = '1' THEN
+                entrada_0   <= datos_sync;
+                fase        <= '1';
+            END IF;
+            IF capturar_1 = '1' THEN
+                entrada_1   <= datos_sync;
+                pendiente   <= '1';
+            ELSIF ack_aceptado = '1' THEN
+                pendiente   <= '0';
+                fase        <= '0';
+            END IF;
 
             -- Salidas independientes de la FSM y del ACK de las entradas.
-            if rw = '1' and seleccion(3) = '1' then
+            IF rw = '1' AND seleccion(3) = '1' THEN
                 salida_baja <= data_in;
-            end if;
-            if rw = '1' and seleccion(4) = '1' then
+            END IF;
+            IF rw = '1' AND seleccion(4) = '1' THEN
                 salida_alta <= data_in;
-            end if;
-        end if;
-    end process;
+            END IF;
+        END IF;
+    END PROCESS;
 
     estado_bus <= "000000" & pendiente & '0';
-    irq <= pendiente;
-    LED_gpio <= salida_alta & salida_baja;
+    irq        <= pendiente;
+    LED_gpio   <= salida_alta & salida_baja;
 
     -- MUX combinacional: leer no modifica registros ni reconoce la IRQ.
-    data_out <= entrada_0 when rw = '0' and seleccion(0) = '1' else
-                entrada_1 when rw = '0' and seleccion(1) = '1' else
-                estado_bus when rw = '0' and seleccion(2) = '1' else
-                (others => '0');
-end architecture rtl;
+    data_out <= entrada_0  WHEN rw = '0' AND seleccion(0) = '1' ELSE
+                entrada_1  WHEN rw = '0' AND seleccion(1) = '1' ELSE
+                estado_bus WHEN rw = '0' AND seleccion(2) = '1' ELSE
+                (OTHERS => '0');
+END ARCHITECTURE rtl;

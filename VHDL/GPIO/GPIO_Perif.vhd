@@ -36,6 +36,8 @@ ARCHITECTURE rtl OF GPIO_Perif IS
     SIGNAL valid_sync       : STD_LOGIC;
     SIGNAL datos_meta       : STD_LOGIC_VECTOR(7 DOWNTO 0);
     SIGNAL datos_sync       : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL decodificado     : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL seleccion        : STD_LOGIC_VECTOR(7 DOWNTO 0);
     SIGNAL entrada_0        : STD_LOGIC_VECTOR(7 DOWNTO 0);
     SIGNAL entrada_1        : STD_LOGIC_VECTOR(7 DOWNTO 0);
     SIGNAL salida_baja      : STD_LOGIC_VECTOR(7 DOWNTO 0);
@@ -61,11 +63,34 @@ BEGIN
         END IF;
     END PROCESS;
 
+    -- Decodificador one-hot 3 a 8: EN = cs, entradas A5..A3.
+    -- Mapa E/S (R: rw=0, W: rw=1); A2..A0 son alias de cada interfaz.
+    -- Y0 / 000 / 0x00..0x07: R entrada_0[7:0] (X).
+    -- Y1 / 001 / 0x08..0x0F: R entrada_1[7:0] (Y).
+    -- Y2 / 010 / 0x10..0x17: R estado[7:0], [1]=pendiente, otros bits=0;
+    --                       W control[7:0], 0x02=ACK.
+    -- Y3 / 011 / 0x18..0x1F: W salida_baja[7:0] -> LED_gpio[7:0].
+    -- Y4 / 100 / 0x20..0x27: W salida_alta[7:0] -> LED_gpio[15:8].
+    -- Y5 / 101 / 0x28..0x2F, Y6 / 110 / 0x30..0x37,
+    -- Y7 / 111 / 0x38..0x3F: sin interfaz.
+    -- Lecturas no implementadas devuelven 0; escrituras sin interfaz no actuan.
+    WITH addr(5 DOWNTO 3) SELECT
+        decodificado <= "00000001" WHEN "000",
+                        "00000010" WHEN "001",
+                        "00000100" WHEN "010",
+                        "00001000" WHEN "011",
+                        "00010000" WHEN "100",
+                        "00100000" WHEN "101",
+                        "01000000" WHEN "110",
+                        "10000000" WHEN "111",
+                        "00000000" WHEN OTHERS;
+    seleccion <= decodificado WHEN cs = '1' ELSE (OTHERS => '0');
+
     capturar_0   <= '1' WHEN state = WAIT_RELEASE AND
                              valid_sync = '0' AND fase = '0' ELSE '0';
     capturar_1   <= '1' WHEN state = WAIT_RELEASE AND
                              valid_sync = '0' AND fase = '1' ELSE '0';
-    ack_aceptado <= '1' WHEN cs = '1' AND rw = '1' AND addr(5 DOWNTO 3) = "010" AND
+    ack_aceptado <= '1' WHEN seleccion(2) = '1' AND rw = '1' AND
                              data_in = X"02" AND pendiente = '1' ELSE '0';
 
     control : PROCESS(state, valid_sync, fase, ack_aceptado)
@@ -121,10 +146,10 @@ BEGIN
             END IF;
 
             -- Salidas independientes de la FSM y del ACK de las entradas.
-            IF cs = '1' AND rw = '1' AND addr(5 DOWNTO 3) = "011" THEN
+            IF rw = '1' AND seleccion(3) = '1' THEN
                 salida_baja <= data_in;
             END IF;
-            IF cs = '1' AND rw = '1' AND addr(5 DOWNTO 3) = "100" THEN
+            IF rw = '1' AND seleccion(4) = '1' THEN
                 salida_alta <= data_in;
             END IF;
         END IF;
@@ -135,8 +160,8 @@ BEGIN
     LED_gpio   <= salida_alta & salida_baja;
 
     -- MUX combinacional: leer no modifica registros ni reconoce la IRQ.
-    data_out <= entrada_0  WHEN cs = '1' AND rw = '0' AND addr(5 DOWNTO 3) = "000" ELSE
-                entrada_1  WHEN cs = '1' AND rw = '0' AND addr(5 DOWNTO 3) = "001" ELSE
-                estado_bus WHEN cs = '1' AND rw = '0' AND addr(5 DOWNTO 3) = "010" ELSE
+    data_out <= entrada_0  WHEN rw = '0' AND seleccion(0) = '1' ELSE
+                entrada_1  WHEN rw = '0' AND seleccion(1) = '1' ELSE
+                estado_bus WHEN rw = '0' AND seleccion(2) = '1' ELSE
                 (OTHERS => '0');
 END ARCHITECTURE rtl;

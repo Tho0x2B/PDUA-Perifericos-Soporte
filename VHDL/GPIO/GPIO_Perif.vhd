@@ -64,15 +64,18 @@ BEGIN
     END PROCESS;
 
     -- Decodificador one-hot 3 a 8: EN = cs, entradas A5..A3.
-    -- Mapa E/S (R: rw=0, W: rw=1); A2..A0 son alias de cada interfaz.
-    -- Y0 / 000 / 0x00..0x07: R entrada_0[7:0] (X).
-    -- Y1 / 001 / 0x08..0x0F: R entrada_1[7:0] (Y).
-    -- Y2 / 010 / 0x10..0x17: R estado[7:0], [1]=pendiente, otros bits=0;
-    --                       W control[7:0], 0x02=ACK.
-    -- Y3 / 011 / 0x18..0x1F: W salida_baja[7:0] -> LED_gpio[7:0].
-    -- Y4 / 100 / 0x20..0x27: W salida_alta[7:0] -> LED_gpio[15:8].
-    -- Y5 / 101 / 0x28..0x2F, Y6 / 110 / 0x30..0x37,
-    -- Y7 / 111 / 0x38..0x3F: sin interfaz.
+    -- Mapa E/S: cs habilita el periferico; A2..A0 son alias.
+    -- +----------+-------------+----------------+------------------+
+    -- | A5..A3   | Direcciones | Lectura (rw=0) | Escritura (rw=1) |
+    -- +----------+-------------+----------------+------------------+
+    -- | 000      | 0x00..0x07  | entrada_0[7:0] | Sin efecto       |
+    -- | 001      | 0x08..0x0F  | entrada_1[7:0] | Sin efecto       |
+    -- | 010      | 0x10..0x17  | Estado[7:0]    | 0x02 ACK         |
+    -- | 011      | 0x18..0x1F  | 0              | LED_gpio[7:0]    |
+    -- | 100      | 0x20..0x27  | 0              | LED_gpio[15:8]   |
+    -- | 101..111 | 0x28..0x3F  | 0              | Sin efecto       |
+    -- +----------+-------------+----------------+------------------+
+    -- Estado[7:0] = "000000" & pendiente & '0'; pendiente es el bit 1.
     -- Lecturas no implementadas devuelven 0; escrituras sin interfaz no actuan.
     WITH addr(5 DOWNTO 3) SELECT
         decodificado <= "00000001" WHEN "000",

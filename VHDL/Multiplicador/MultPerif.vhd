@@ -2,6 +2,43 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 -- Periferico multiplicador (E/S 0x40-0x7F, salida Y1 del decodificador 2 a 4 con A7..A6).
+-- Camino de datos de MultPerif (N=8).
+--                  +-----------------+       +---------------------+
+-- data_in[7:0] -+->| operando_x[7:0] |------>| A                   |
+--               |  +-----------------+       |     Multiplier      |
+--               |  +-----------------+       |     signed 8x8      |
+--               +->| operando_y[7:0] |------>| B                   |
+--                  +-----------------+       +----------+----------+
+--                                                       | producto[15:0]
+--                                                       v
+--                                             +-------------------+
+-- captura ----------------------------------->| resultado[15:0]   |
+--                                             +-------------------+
+--
+-- Los labels resultado[7:0] y resultado[15:8] continuan ese bus en el MUX:
+--                           +--------------------+
+-- resultado[7:0] ---------->|                    |
+-- resultado[15:8] --------->|                    |
+-- estado[7:0] ------------->|    MUX lectura     |--> data_out[7:0]
+-- 0x00[7:0] --------------->|                    |
+--                           +---------+----------+
+--                                     ^
+--                                     |
+--                                  sel, rw
+--
+--              +--------------+
+-- addr[5:3] -->| A[2:0]       |--> sel[7:0] (one-hot)
+-- cs --------->| EN           |
+--              +--------------+
+-- DECO 3 a 8: A[2:0]=addr[5:3], EN=cs.
+-- sel(0), rw=1 habilitan REG X; sel(1), rw=1 habilitan REG Y.
+-- sel(2), rw=1 seleccionan control: START o ACK segun data_in[7:0].
+-- sel(2..4), rw=0 seleccionan estado, Z bajo o Z alto en el MUX.
+-- START aceptado -> carga contador=8; ocupado=1 mientras contador/=0.
+-- Octavo flanco posterior -> captura producto en resultado; pendiente=1.
+-- ACK aceptado -> pendiente=0. irq=pendiente.
+-- Registros y contador: flanco de subida de clk; reset asincrono rst_n=0.
+
 entity MultPerif is
     port (
         clk      : in  std_logic;
@@ -37,15 +74,18 @@ architecture rtl of MultPerif is
     signal pendiente        : std_logic;
 begin
     -- Decodificador one-hot 3 a 8: EN = cs, entradas A5..A3.
-    -- Mapa E/S (R: rw=0, W: rw=1); A2..A0 son alias de cada interfaz.
-    -- Y0 / 000 / 0x40..0x47: W X[7:0].
-    -- Y1 / 001 / 0x48..0x4F: W Y[7:0].
-    -- Y2 / 010 / 0x50..0x57: W control[7:0], 0x01=START, 0x02=ACK;
-    --                       R estado[7:0], [1]=pendiente, [0]=ocupado, [7:2]=0.
-    -- Y3 / 011 / 0x58..0x5F: R Z[7:0].
-    -- Y4 / 100 / 0x60..0x67: R Z[15:8].
-    -- Y5 / 101 / 0x68..0x6F, Y6 / 110 / 0x70..0x77,
-    -- Y7 / 111 / 0x78..0x7F: sin interfaz.
+    -- Mapa E/S: cs habilita el periferico; A2..A0 son alias.
+    -- +----------+-------------+----------------+-----------------------+
+    -- | A5..A3   | Direcciones | Lectura (rw=0) | Escritura (rw=1)      |
+    -- +----------+-------------+----------------+-----------------------+
+    -- | 000      | 0x40..0x47  | 0              | X[7:0]                |
+    -- | 001      | 0x48..0x4F  | 0              | Y[7:0]                |
+    -- | 010      | 0x50..0x57  | Estado[7:0]    | 0x01 START / 0x02 ACK |
+    -- | 011      | 0x58..0x5F  | Z[7:0]         | Sin efecto            |
+    -- | 100      | 0x60..0x67  | Z[15:8]        | Sin efecto            |
+    -- | 101..111 | 0x68..0x7F  | 0              | Sin efecto            |
+    -- +----------+-------------+----------------+-----------------------+
+    -- Estado[7:0] = "000000" & pendiente & ocupado; pendiente es el bit 1.
     -- Lecturas no implementadas devuelven 0; escrituras sin interfaz no actuan.
     with addr(5 downto 3) select
         decodificado <= "00000001" when "000",

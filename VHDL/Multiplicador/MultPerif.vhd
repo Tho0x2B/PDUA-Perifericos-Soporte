@@ -2,15 +2,43 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 -- Periferico multiplicador (E/S 0x40-0x7F, salida Y1 del decodificador 2 a 4 con A7..A6).
--- Los registros se eligen con un decodificador 3 a 8 sobre A5..A3:
---   Y0 (A5..A3 = 000) -> 0x40  X           (W)
---   Y1 (A5..A3 = 001) -> 0x48  Y           (W)
---   Y2 (A5..A3 = 010) -> 0x50  CONTROL (W: 0x01 START, 0x02 ACK)
---                              ESTADO  (R: bit1 = INT pendiente, bit0 = ocupado)
---   Y3 (A5..A3 = 011) -> 0x58  Z[7:0]      (R)
---   Y4 (A5..A3 = 100) -> 0x60  Z[15:8]     (R)
---   Y5..Y7 (0x68, 0x70, 0x78) -> sin conectar
--- A2..A0 quedan libres (decodificacion parcial: 0x41..0x47 tambien son X).
+-- Camino de datos de MultPerif (N=8).
+--                  +-----------------+       +---------------------+
+-- data_in[7:0] -+->| operando_x[7:0] |------>| A                   |
+--               |  +-----------------+       |     Multiplier      |
+--               |  +-----------------+       |     signed 8x8      |
+--               +->| operando_y[7:0] |------>| B                   |
+--                  +-----------------+       +----------+----------+
+--                                                       | producto[15:0]
+--                                                       v
+--                                             +-------------------+
+-- captura ----------------------------------->| resultado[15:0]   |
+--                                             +-------------------+
+--
+-- Los labels resultado[7:0] y resultado[15:8] continuan ese bus en el MUX:
+--                           +--------------------+
+-- resultado[7:0] ---------->|                    |
+-- resultado[15:8] --------->|                    |
+-- estado[7:0] ------------->|    MUX lectura     |--> data_out[7:0]
+-- 0x00[7:0] --------------->|                    |
+--                           +---------+----------+
+--                                     ^
+--                                     |
+--                                  sel, rw
+--
+--              +--------------+
+-- addr[5:3] -->| A[2:0]       |--> sel[7:0] (one-hot)
+-- cs --------->| EN           |
+--              +--------------+
+-- DECO 3 a 8: A[2:0]=addr[5:3], EN=cs.
+-- sel(0), rw=1 habilitan REG X; sel(1), rw=1 habilitan REG Y.
+-- sel(2), rw=1 seleccionan control: START o ACK segun data_in[7:0].
+-- sel(2..4), rw=0 seleccionan estado, Z bajo o Z alto en el MUX.
+-- START aceptado -> carga contador=8; ocupado=1 mientras contador/=0.
+-- Octavo flanco posterior -> captura producto en resultado; pendiente=1.
+-- ACK aceptado -> pendiente=0. irq=pendiente.
+-- Registros y contador: flanco de subida de clk; reset asincrono rst_n=0.
+
 entity MultPerif is
     port (
         clk      : in  std_logic;
@@ -29,6 +57,7 @@ architecture rtl of MultPerif is
     constant ORDEN_ACK   : std_logic_vector(7 downto 0) := x"02";
     constant LATENCIA   : positive := 8;
 
+    signal decodificado     : std_logic_vector(7 downto 0);
     signal sel              : std_logic_vector(7 downto 0);  -- salidas del 3 a 8
     signal sel_x            : std_logic;                     -- Y0
     signal sel_y            : std_logic;                     -- Y1
@@ -44,23 +73,31 @@ architecture rtl of MultPerif is
     signal ocupado          : std_logic;
     signal pendiente        : std_logic;
 begin
-    -- Decodificador 3 a 8: EN = cs (Y1 del 2 a 4), entradas A5..A3
-    DECO_3A8 : process (cs, addr)
-    begin
-        sel <= (others => '0');
-        if cs = '1' then
-            case addr(5 downto 3) is
-                when "000"  => sel(0) <= '1';
-                when "001"  => sel(1) <= '1';
-                when "010"  => sel(2) <= '1';
-                when "011"  => sel(3) <= '1';
-                when "100"  => sel(4) <= '1';
-                when "101"  => sel(5) <= '1';
-                when "110"  => sel(6) <= '1';
-                when others => sel(7) <= '1';
-            end case;
-        end if;
-    end process DECO_3A8;
+    -- Decodificador one-hot 3 a 8: EN = cs, entradas A5..A3.
+    -- Mapa E/S: cs habilita el periferico; A2..A0 son alias.
+    -- +----------+-------------+----------------+-----------------------+
+    -- | A5..A3   | Direcciones | Lectura (rw=0) | Escritura (rw=1)      |
+    -- +----------+-------------+----------------+-----------------------+
+    -- | 000      | 0x40..0x47  | 0              | X[7:0]                |
+    -- | 001      | 0x48..0x4F  | 0              | Y[7:0]                |
+    -- | 010      | 0x50..0x57  | Estado[7:0]    | 0x01 START / 0x02 ACK |
+    -- | 011      | 0x58..0x5F  | Z[7:0]         | Sin efecto            |
+    -- | 100      | 0x60..0x67  | Z[15:8]        | Sin efecto            |
+    -- | 101..111 | 0x68..0x7F  | 0              | Sin efecto            |
+    -- +----------+-------------+----------------+-----------------------+
+    -- Estado[7:0] = "000000" & pendiente & ocupado; pendiente es el bit 1.
+    -- Lecturas no implementadas devuelven 0; escrituras sin interfaz no actuan.
+    with addr(5 downto 3) select
+        decodificado <= "00000001" when "000",
+                        "00000010" when "001",
+                        "00000100" when "010",
+                        "00001000" when "011",
+                        "00010000" when "100",
+                        "00100000" when "101",
+                        "01000000" when "110",
+                        "10000000" when "111",
+                        "00000000" when others;
+    sel <= decodificado when cs = '1' else (others => '0');
 
     sel_x       <= sel(0); -- Guarda el byte del bus en el registro x primer operando con rw= 1 / con rw= 0 no hace nada, solo devuelve 0x00
     sel_y       <= sel(1); -- Guarda el byte del bus en el registro y segundo operando / con rw = 0 no hace nada
